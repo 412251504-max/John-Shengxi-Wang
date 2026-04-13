@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "skills": {
+    "huashu-nuwa": {
+      "source": "alchaincyf/nuwa-skill",
+      "sourceType": "github",
+      "computedHash": "4188cab0361cec5b520a31530b85954cb9e4599305899e1f20c3bdf40de0e1d6"
+    }
+  }
+}
