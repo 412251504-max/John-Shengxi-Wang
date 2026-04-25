@@ -1,6 +1,88 @@
-# Claude Code 工作指引
+# CLAUDE.md
 
-本文件在每次 Claude Code 启动时自动加载，包含所有迁移过来的 skill 说明。
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+本文件在每次 Claude Code 启动时自动加载，包含所有 skill 说明与代码库指引。
+
+---
+
+## 代码库架构
+
+这是薛记炒货相关工具和 Claude Code Skills 的集合，无构建系统或测试框架。
+
+```
+skills/
+├── xuji-xlr-stats/
+│   └── process.py                  # 独立 CLI 脚本（主要版本）
+└── xuji-xlr-stats-skill/
+    ├── SKILL.md                    # Skill 描述与调用协议
+    └── scripts/
+        ├── process.py              # Skill 内嵌版本（逻辑同上）
+        └── process_passed.py       # 变体：以「通过状态=已通过」为完成口径
+```
+
+**两个脚本版本的区别：**
+- `process.py`：默认口径，`完成状态 == '已完成'` 计为完成
+- `process_passed.py`：考核口径，`通过状态 == '已通过'` 计为完成
+
+**核心数据流（process.py）：**
+1. `load_data()` — 读取三个 Excel 输入文件
+2. `filter_data()` — 剔除停用账号 + 过滤非门店人员（正则 `^[A-Z]\d{3}` 匹配门店编码）+ 岗位白名单
+3. `enrich_with_arch()` — 按机构编码精确匹配小区负责人，失败则降级到（分公司, 区域）匹配，再失败则查手动覆盖表
+4. `build_*` 系列函数 — 构建各报表 DataFrame
+5. `write_*` 系列函数 — 用 openpyxl 写出带样式的 Excel
+
+**依赖：** `pandas`、`openpyxl`（无 requirements.txt，需手动安装）
+
+---
+
+## 运行脚本
+
+```bash
+# 安装依赖（如未安装）
+pip install pandas openpyxl
+
+# 运行学习率统计（主版本）
+python skills/xuji-xlr-stats/process.py \
+  "<项目地图情况表路径>" \
+  "<员工账号管理路径>" \
+  "<架构表路径>" \
+  "<输出目录>"
+
+# 运行考核通过口径版本
+python skills/xuji-xlr-stats-skill/scripts/process_passed.py \
+  "<项目地图情况表路径>" \
+  "<员工账号管理路径>" \
+  "<架构表路径>" \
+  "<输出目录>"
+```
+
+正常有效人员数量在 2000–3000 之间；偏离此范围需检查输入文件是否正确。
+
+---
+
+## 需要手动更新的配置
+
+`process.py` 中有两处需要随业务变化手动维护的字典：
+
+```python
+# 小区负责人 → 成功部 映射（人员调整时更新）
+XQ_TO_BU = {
+    '周亭': '合伙人成功一部',
+    '赵丹': '合伙人成功二部',
+    '岳辉': '合伙人成功三部',
+    '王刚': '合伙人成功四部',
+}
+
+# 架构表未收录的区域手动覆盖（新区域开设时更新）
+MANUAL_REGION_MAP = {
+    ('陕西销售中心', '延安区'): '周亭',
+    ('湖北销售中心', '孝感区'): '周亭',
+    ('江西销售中心', '吉安区'): '赵丹',
+}
+```
+
+`skills/xuji-xlr-stats-skill/scripts/process.py` 和 `process_passed.py` 中有相同字典，需同步更新。
 
 ---
 
@@ -114,7 +196,7 @@ wb.save('output.xlsx')
 
 ### 完成口径
 - 默认：`完成状态 == '已完成'`
-- 用户指定时可切换为：`通过状态 == '已通过'`
+- 用户指定时可切换为：`通过状态 == '已通过'`（使用 `process_passed.py`）
 
 ### 输出文件
 1. 单项目完成情况表（人员明细，含通过状态列）
@@ -122,15 +204,6 @@ wb.save('output.xlsx')
 3. 东区学习率统计（按直营/合伙+成功部汇总）
 4. 催学名单（按四位小区负责人分 Sheet，城市配色）
 5. 考核未通过名单（完成但未通过考核）
-
-### 调用方式
-```bash
-python skills/xuji-xlr-stats/process.py \
-  "<项目地图情况表路径>" \
-  "<员工账号管理路径>" \
-  "<架构表路径>" \
-  "<输出目录>"
-```
 
 ---
 
